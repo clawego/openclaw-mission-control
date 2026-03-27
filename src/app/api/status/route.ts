@@ -62,7 +62,12 @@ export async function GET() {
         enabled: enabledChannels,
         list: channels,
       },
-      activity: activityStats,
+      activity: {
+        total: activityStats.total,
+        byType: activityStats.byType,
+        todayCount: activityStats.todayCount,
+        todayByType: activityStats.todayByType,
+      },
       workspace: {
         hasSoul: !!soul,
         hasIdentity: !!identity,

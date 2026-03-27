@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRecentActivity, classifyEntry, timeAgo } from "@/lib/logs";
+import { getRecentActivity, classifyEntry, timeAgo, humanizeLogMessage } from "@/lib/logs";
 
 export async function GET(request: Request) {
   try {
@@ -13,7 +13,8 @@ export async function GET(request: Request) {
       timeAgo: timeAgo(entry.timestamp),
       type: classifyEntry(entry),
       source: entry.type,
-      message: entry.message,
+      humanMessage: humanizeLogMessage(entry),
+      rawMessage: entry.message,
       responseTime: entry.responseTime || null,
     }));
 

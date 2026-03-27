@@ -10,6 +10,8 @@ import {
   RotateCcw,
   FileText,
   Loader,
+  Coins,
+  Activity,
 } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import ActivityFeed from "@/components/ActivityFeed";
@@ -24,10 +26,14 @@ interface StatusData {
   agents: { count: number; list: Array<{ id: string; model: string; heartbeat: string }> };
   skills: { total: number; enabled: number };
   channels: { total: number; enabled: number };
-  activity: { total: number; todayCount: number; byType: Record<string, number> };
+  activity: {
+    total: number;
+    todayCount: number;
+    byType: Record<string, number>;
+    todayByType: Record<string, number>;
+  };
 }
 
-// Format model name for display
 function formatModel(model: string): string {
   return model
     .replace("google/", "")
@@ -74,8 +80,14 @@ export default function CommandCenter() {
     );
   }
 
-  const messageCount = (data.activity.byType["telegram"] || 0) + (data.activity.byType["discord"] || 0) + (data.activity.byType["bluebubbles"] || 0) + (data.activity.byType["imessage"] || 0);
-  const wsCount = data.activity.byType["ws"] || 0;
+  // Daily counts
+  const todayMessages = (data.activity.todayByType?.["telegram"] || 0) + (data.activity.todayByType?.["discord"] || 0) + (data.activity.todayByType?.["bluebubbles"] || 0) + (data.activity.todayByType?.["imessage"] || 0);
+  const todayWsCalls = data.activity.todayByType?.["ws"] || 0;
+  const todayHeartbeats = data.activity.todayByType?.["heartbeat"] || 0;
+
+  // Cumulative counts
+  const totalMessages = (data.activity.byType["telegram"] || 0) + (data.activity.byType["discord"] || 0) + (data.activity.byType["bluebubbles"] || 0) + (data.activity.byType["imessage"] || 0);
+  const totalWsCalls = data.activity.byType["ws"] || 0;
 
   return (
     <div className="space-y-8">
@@ -89,27 +101,29 @@ export default function CommandCenter() {
         </p>
       </div>
 
-      {/* Stat Cards — LIVE DATA */}
+      {/* Stat Cards — TODAY focused, cumulative de-emphasized */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Messages Handled"
-          value={messageCount.toLocaleString()}
-          badge={`+${data.activity.todayCount} today`}
+          title="Messages Today"
+          value={todayMessages}
+          badge={`${totalMessages.toLocaleString()} total`}
           icon={MessageSquare}
           gradient="orange"
           delay={1}
         />
         <StatCard
-          title="WebSocket Calls"
-          value={wsCount.toLocaleString()}
+          title="API Calls Today"
+          value={todayWsCalls}
+          badge={`${totalWsCalls.toLocaleString()} total`}
           icon={Wrench}
           gradient="blue"
           delay={2}
         />
         <StatCard
-          title="Skills Active"
-          value={`${data.skills.enabled} / ${data.skills.total}`}
-          icon={RefreshCw}
+          title="Events Today"
+          value={data.activity.todayCount}
+          badge={`${data.activity.total.toLocaleString()} total`}
+          icon={Activity}
           gradient="green"
           delay={3}
         />
@@ -122,13 +136,68 @@ export default function CommandCenter() {
         />
       </div>
 
+      {/* Token Usage Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-surface-card rounded-xl border border-border-subtle p-5 animate-fade-in opacity-0" style={{ animationDelay: "0.25s", animationFillMode: "forwards" }}>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 rounded-lg bg-surface-hover">
+              <Coins size={20} className="text-brand-orange" />
+            </div>
+            <div>
+              <h3 className="text-text-primary font-semibold text-sm">Token Usage Today</h3>
+              <p className="text-text-muted text-[10px]">Estimated from session activity</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            <div>
+              <p className="text-text-muted text-[10px] uppercase tracking-wider mb-1">API Calls</p>
+              <p className="text-text-primary text-lg font-bold">{todayWsCalls}</p>
+            </div>
+            <div>
+              <p className="text-text-muted text-[10px] uppercase tracking-wider mb-1">Messages</p>
+              <p className="text-text-primary text-lg font-bold">{todayMessages}</p>
+            </div>
+            <div>
+              <p className="text-text-muted text-[10px] uppercase tracking-wider mb-1">Heartbeats</p>
+              <p className="text-text-primary text-lg font-bold">{todayHeartbeats}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-surface-card rounded-xl border border-border-subtle p-5 animate-fade-in opacity-0" style={{ animationDelay: "0.30s", animationFillMode: "forwards" }}>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 rounded-lg bg-surface-hover">
+              <RefreshCw size={20} className="text-brand-blue" />
+            </div>
+            <div>
+              <h3 className="text-text-primary font-semibold text-sm">Cumulative Totals</h3>
+              <p className="text-text-muted text-[10px]">Since gateway first started</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            <div>
+              <p className="text-text-muted text-[10px] uppercase tracking-wider mb-1">All Events</p>
+              <p className="text-text-primary text-lg font-bold">{data.activity.total.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-text-muted text-[10px] uppercase tracking-wider mb-1">Messages</p>
+              <p className="text-text-primary text-lg font-bold">{totalMessages.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-text-muted text-[10px] uppercase tracking-wider mb-1">WS Calls</p>
+              <p className="text-text-primary text-lg font-bold">{totalWsCalls.toLocaleString()}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Activity Feed — takes 2 columns */}
         <div className="lg:col-span-2">
           <ActivityFeed />
         </div>
 
-        {/* Right column — Agent Config + Quick Actions */}
+        {/* Right column */}
         <div className="space-y-6">
           {/* Agent Configuration — LIVE DATA */}
           <div className="bg-surface-card rounded-xl border border-border-subtle p-5 animate-fade-in opacity-0 stagger-3" style={{ animationFillMode: "forwards" }}>

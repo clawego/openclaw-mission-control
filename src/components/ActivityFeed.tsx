@@ -13,7 +13,8 @@ interface ActivityEntry {
   timeAgo: string;
   type: "heartbeat" | "message" | "tool_call" | "system";
   source: string;
-  message: string;
+  humanMessage: string;
+  rawMessage: string;
   responseTime: number | null;
 }
 
@@ -42,7 +43,6 @@ export default function ActivityFeed() {
     }
 
     fetchActivity();
-    // Poll every 30 seconds
     const interval = setInterval(fetchActivity, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -80,16 +80,20 @@ export default function ActivityFeed() {
                 key={`${item.timestamp}-${i}`}
                 className="flex items-start gap-3 px-5 py-3 border-b border-border-subtle last:border-b-0 hover:bg-surface-hover/50 transition-colors"
               >
-                <div className={`p-1.5 rounded-md ${config.bg} mt-0.5`}>
+                <div className={`p-1.5 rounded-md ${config.bg} mt-0.5 flex-shrink-0`}>
                   <Icon size={14} className={config.color} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-text-secondary text-sm truncate">
-                    <span className="text-text-muted text-xs font-mono">[{item.source}]</span>{" "}
-                    {item.message}
+                  {/* User-friendly description — primary */}
+                  <p className="text-text-primary text-sm leading-snug">
+                    {item.humanMessage}
+                  </p>
+                  {/* Raw log line — de-emphasized below */}
+                  <p className="text-text-disabled text-[10px] font-mono mt-0.5 truncate">
+                    [{item.source}] {item.rawMessage}
                   </p>
                 </div>
-                <div className="flex flex-col items-end gap-0.5">
+                <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
                   <span className="text-text-muted text-[10px] whitespace-nowrap">
                     {item.timeAgo}
                   </span>
