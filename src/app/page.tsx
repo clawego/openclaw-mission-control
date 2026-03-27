@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   MessageSquare,
   Wrench,
@@ -8,11 +9,74 @@ import {
   Send,
   RotateCcw,
   FileText,
+  Loader,
 } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import ActivityFeed from "@/components/ActivityFeed";
 
+interface StatusData {
+  status: string;
+  version: string;
+  gateway: { port: number; mode: string; uptime: string };
+  model: { primary: string };
+  memory: { backend: string; updateInterval: string };
+  compaction: { mode: string; reserveTokensFloor: number; softThresholdTokens: number; memoryFlushEnabled: boolean };
+  agents: { count: number; list: Array<{ id: string; model: string; heartbeat: string }> };
+  skills: { total: number; enabled: number };
+  channels: { total: number; enabled: number };
+  activity: { total: number; todayCount: number; byType: Record<string, number> };
+}
+
+// Format model name for display
+function formatModel(model: string): string {
+  return model
+    .replace("google/", "")
+    .replace("-preview", "")
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export default function CommandCenter() {
+  const [data, setData] = useState<StatusData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const json = await res.json();
+        setData(json);
+      } catch (err) {
+        console.error("Failed to fetch status:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader size={24} className="text-brand-orange animate-spin" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="text-center p-8 text-text-muted">
+        Failed to connect to OpenClaw. Is the gateway running?
+      </div>
+    );
+  }
+
+  const messageCount = (data.activity.byType["telegram"] || 0) + (data.activity.byType["discord"] || 0) + (data.activity.byType["bluebubbles"] || 0) + (data.activity.byType["imessage"] || 0);
+  const wsCount = data.activity.byType["ws"] || 0;
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
@@ -25,35 +89,33 @@ export default function CommandCenter() {
         </p>
       </div>
 
-      {/* Stat Cards */}
+      {/* Stat Cards — LIVE DATA */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Messages Handled"
-          value={247}
-          badge="+12 today"
+          value={messageCount.toLocaleString()}
+          badge={`+${data.activity.todayCount} today`}
           icon={MessageSquare}
           gradient="orange"
           delay={1}
         />
         <StatCard
-          title="Tool Calls"
-          value={89}
-          badge="+5 today"
+          title="WebSocket Calls"
+          value={wsCount.toLocaleString()}
           icon={Wrench}
           gradient="blue"
           delay={2}
         />
         <StatCard
-          title="Content Synced"
-          value={34}
-          badge="+2 today"
+          title="Skills Active"
+          value={`${data.skills.enabled} / ${data.skills.total}`}
           icon={RefreshCw}
           gradient="green"
           delay={3}
         />
         <StatCard
-          title="Agent Uptime"
-          value="14h 3m"
+          title="Gateway Uptime"
+          value={data.gateway.uptime}
           icon={Clock}
           gradient="red"
           delay={4}
@@ -68,19 +130,22 @@ export default function CommandCenter() {
 
         {/* Right column — Agent Config + Quick Actions */}
         <div className="space-y-6">
-          {/* Agent Configuration */}
+          {/* Agent Configuration — LIVE DATA */}
           <div className="bg-surface-card rounded-xl border border-border-subtle p-5 animate-fade-in opacity-0 stagger-3" style={{ animationFillMode: "forwards" }}>
             <h2 className="text-text-primary font-semibold text-sm mb-4">
               Agent Configuration
             </h2>
             <div className="space-y-3">
               {[
-                { label: "Primary Model", value: "Gemini 3 Flash" },
+                { label: "Primary Model", value: formatModel(data.model.primary) },
                 { label: "Provider", value: "Google AI" },
-                { label: "Memory Backend", value: "QMD" },
-                { label: "Heartbeat", value: "Every 1h" },
-                { label: "Compaction", value: "80K token threshold" },
-                { label: "Active Agents", value: "6 (main, monitor, local-scout, product-scout, ops-engineer, analytics)" },
+                { label: "Memory Backend", value: data.memory.backend.toUpperCase() },
+                { label: "Memory Interval", value: data.memory.updateInterval },
+                { label: "Compaction", value: `${(data.compaction.softThresholdTokens / 1000).toFixed(0)}K token threshold` },
+                { label: "Gateway", value: `localhost:${data.gateway.port} (${data.gateway.mode})` },
+                { label: "Active Agents", value: `${data.agents.count} agents` },
+                { label: "Channels", value: `${data.channels.enabled} enabled` },
+                { label: "Version", value: data.version },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -89,6 +154,29 @@ export default function CommandCenter() {
                   <span className="text-text-muted text-xs">{item.label}</span>
                   <span className="text-text-primary text-xs font-medium font-mono">
                     {item.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Agents List */}
+          <div className="bg-surface-card rounded-xl border border-border-subtle p-5 animate-fade-in opacity-0" style={{ animationDelay: "0.2s", animationFillMode: "forwards" }}>
+            <h2 className="text-text-primary font-semibold text-sm mb-4">
+              Agent Fleet
+            </h2>
+            <div className="space-y-2">
+              {data.agents.list.map((agent) => (
+                <div
+                  key={agent.id}
+                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-hover/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-brand-green" />
+                    <span className="text-text-primary text-xs font-medium">{agent.id}</span>
+                  </div>
+                  <span className="text-text-muted text-[10px] font-mono">
+                    {formatModel(agent.model)}
                   </span>
                 </div>
               ))}

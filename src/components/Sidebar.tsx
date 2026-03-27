@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -22,8 +23,39 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+function formatModel(model: string): string {
+  return model
+    .replace("google/", "")
+    .replace("-preview", "")
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export default function Sidebar() {
   const pathname = usePathname();
+
+  const [modelName, setModelName] = useState("Loading...");
+  const [isOnline, setIsOnline] = useState(false);
+
+  useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const res = await fetch("/api/status");
+        if (res.ok) {
+          const data = await res.json();
+          setModelName(formatModel(data.model.primary));
+          setIsOnline(true);
+        }
+      } catch {
+        setIsOnline(false);
+        setModelName("Offline");
+      }
+    }
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // XP bar config (gamification)
   const level = 7;
@@ -49,19 +81,19 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Agent Status Card */}
+      {/* Agent Status Card — LIVE */}
       <div className="mx-4 mb-5 p-3 rounded-lg bg-surface-card border border-border-subtle">
         <div className="flex items-center gap-2.5">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-pulse-dot absolute inline-flex h-full w-full rounded-full bg-brand-green opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-green" />
+            <span className={`animate-pulse-dot absolute inline-flex h-full w-full rounded-full opacity-75 ${isOnline ? "bg-brand-green" : "bg-brand-red"}`} />
+            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isOnline ? "bg-brand-green" : "bg-brand-red"}`} />
           </span>
           <div className="min-w-0">
             <p className="text-text-primary text-xs font-medium truncate">
-              Vixi Online
+              {isOnline ? "Vixi Online" : "Vixi Offline"}
             </p>
             <p className="text-text-muted text-[10px] truncate">
-              Local · Gemini 3 Flash
+              Local · {modelName}
             </p>
           </div>
         </div>
